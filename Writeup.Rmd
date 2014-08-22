@@ -1,0 +1,87 @@
+# Predicting Physical Activity
+========================================================
+
+## Abstract
+This document provides a walkthrough for developing a model to predict which physical activity a subject is engaging in based on motion and angle data. It explains certain pitfalls, but mostly just presents findings and gives instructions to reproduce them.
+
+## Getting Started
+First, we'll prepare our workspace. With our environments empty, we're going to load in the data that we've saved into our working directory. We'll also load in the packages we'll be using for our analysis.
+
+```{r}
+library(caret)
+library(rattle)
+Testing<- read.csv("pml-testing.csv")
+Training<-read.csv("pml-training.csv")
+InTrain<-createDataPartition(y=Training$classe, p=0.6, list=F)
+Train1<-Training[InTrain,]
+Test1<-Training[-InTrain,]
+```
+Now we've created a training partition and a testing partition. Let's have a quick look at the form of our data.
+
+```{r}
+summary(Train1)
+```
+The first thing to notice is all the missing data. About two thirds of the columns have no data for more than 90% of the observations. If we were only missing a few, we'd impute the missing data, but as it is the data wouldn't be very good.
+
+## Cleaning
+We're going to remove that bad data. There are a couple ways to do it. We could notice that none of the variables with missing data are numeric or integers, and build a new dataframe consisting only of columns meeting that requirement and the "classe" column. We could also just note the column numbers of the bad columns and remove those. We're also going to remove columns that have data, but aren't really applicable. Even though the first few columns actually present an almost perfect model for in sample, it would be the definition of tuning to the noise. Unsurprisingly, a person is more likely to be walking if he was walking the second before or after. It doesn't really solve the question at hand to look at that.
+
+```{r}
+fTrain1<-Train1[-c(1:7)]
+fTrain1<-fTrain1[-c(7,10:29)]
+fTrain1<-fTrain1[-c(5:8,22:31,41:55)]
+fTrain1<-fTrain1[-c(30:44)]
+fTrain1<-fTrain1[-c(31:40)]
+fTrain1<-fTrain1[-c(43:57)]
+fTrain1<-fTrain1[-c(44:53)]
+```
+## Looking for a model
+In general, it should be noted that black-box prediction is not a good thing. In an ideal world, we would first learn something about the theory behind the data we're analyzing. This helps with feature selection and helps prevent tuning to noise. Unfortunately, that's beyond the scope of this assignment. So instead we're going to look at a few different prediction methods.
+
+First we'll try building a single tree.
+
+```{r}
+fit1<-train(classe ~ ., method="rpart", data=fTrain1, trControl = trainControl(method = "cv", number = 4))
+fit1
+```
+As we can see, the single tree wasn't very accurate. Fortunately, a single tree is really easy to visualize. It's worth doing that just to get a feel for what's actually taking place.
+
+
+```{r fig.width=7, fig.height=6}
+fancyRpartPlot(fit1$finalModel)
+```
+Now we're going to look at more complicated models. The first one is a bagged tree. It should be relatively fast and accurate.
+
+```{r}
+fit4<-fit4<-train(classe ~ ., method="treebag", data=fTrain1)
+fit4
+```
+Let's check it against our test set for cross validation purposes. This should give us a good idea of our out of sample error rate, which will be roughly 1- the number below.
+
+```{r}
+mean(Test1$classe == predict(fit4, Test1))
+```
+Another good prediction method is a random forest. Random forests bootstrap as a part of constructing the forest in the first place, so we can use a simple out of bag sampling method with them. That lets us build them relatively quickly. Let's try one now. We're going to build a conditional inference random forest.
+
+```{r}
+fit5<-train(classe ~ ., method="cforest", data=fTrain1,trControl = trainControl(method = "oob"))
+fit5
+```
+As you can see the accuracy is pretty similar to what we got with the bagged tree. Let's check our out of sample accuracy on this one too.
+
+```{r}
+mean(Test1$classe == predict(fit5, Test1))
+```
+It's worthwhile to compare how long these models take to fit.
+
+```{r}
+fit1$times
+fit4$times
+fit5$times
+```
+
+Given the choice between a regular single tree, a bagged tree, and a conditional inference random forest, the bagged tree provides the best mix of speed of calculation and accuracy. We'll use that to make our predictions for the test.
+
+```{r}
+predict(fit4, Testing)
+```
