@@ -460,7 +460,7 @@ fancyRpartPlot(fit1$finalModel)
 ## Loading required package: RColorBrewer
 ```
 
-![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5.png) 
+![plot of chunk unnamed-chunk-5](pml_figures/PML.jpeg) 
 
 Now we're going to look at more complicated models. The first one is a bagged tree. It should be relatively fast and accurate.
 
